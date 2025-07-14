@@ -1,0 +1,199 @@
+import datetime as date
+import mysql.connector as sql
+
+SpecialSym = ['$', '@', '#', '%']
+dates1 = date.datetime.now()
+
+# Connection details - update your password and database
+mycon = sql.connect(
+    host="localhost",
+    user="root",
+    password="Palak@123",
+    database="hubnet"
+)
+mycur = mycon.cursor()
+
+while True:
+    print("\n")
+    print("___________________________________________________________________________")
+    print("*******************  Welcome To Colony Bank Of India  *******************")
+    print("___________________________________________________________________________")
+    print("Press 1 for Sign Up ")
+    print("Press 2 for Sign In ")
+
+    try:
+        ch = int(input("Enter Your Choice : "))
+        if ch not in (1, 2):
+            raise ValueError("Invalid Choice.")
+    except ValueError as e:
+        print(f"Error: {e}")
+        continue
+
+    if ch == 1:
+        while True:
+            name = input("Enter Your Name Here : ")
+            if any(c in name for c in '.#*$&=,@?/;'):
+                print("Special Characters are not allowed.")
+            else:
+                break
+
+        while True:
+            username = input("Enter Your User Name : ")
+            if any(c in username for c in '.#*$&=,@?/;'):
+                print("Special Characters are not allowed.")
+            else:
+                break
+
+        while True:
+            password = input("Enter Your Password : ")
+            if len(password) < 6 or \
+               not any(c.isdigit() for c in password) or \
+               not any(c.isupper() for c in password) or \
+               not any(c.islower() for c in password) or \
+               not any(c in SpecialSym for c in password):
+                print("Password must be at least 6 characters, include uppercase, lowercase, a number, and a special symbol.")
+            else:
+                break
+
+        balance = int(input("Enter the amount to deposit: "))
+
+        while True:
+            try:
+                dob = input("Enter Your Date of Birth (DD/MM/YYYY): ")
+                dob = date.datetime.strptime(dob, "%d/%m/%Y").date()
+                break
+            except ValueError:
+                print("Invalid format. Please enter DD/MM/YYYY.")
+
+        address = input("Enter Your Address: ")
+
+        while True:
+            phone = input("Enter Your Phone Number: ")
+            if len(phone) != 10 or not phone.isdigit():
+                print("Enter a valid 10-digit number.")
+            else:
+                break
+
+        while True:
+            aadhar = input("Enter Your 12 Digit Aadhar Number: ")
+            if len(aadhar) != 12 or not aadhar.isdigit():
+                print("Enter a valid 12-digit Aadhar number.")
+            else:
+                break
+
+        query = """
+        INSERT INTO bank (Name, UserName, Password, DOB, Address, Mobile_Number, Aadhar_no, Balance)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+        """
+        mycur.execute(query, (name, username, password, dob, address, phone, aadhar, balance))
+        mycon.commit()
+        print("\nAccount Created Successfully! You can now log in.")
+        continue
+
+    elif ch == 2:
+        u = input("Enter Your Username: ")
+        p = input("Enter Your Password: ")
+
+        query = "SELECT * FROM bank WHERE UserName=%s AND Password=%s"
+        mycur.execute(query, (u, p))
+        user_data = mycur.fetchone()
+        if not user_data:
+            print("Login failed. Invalid credentials.")
+            continue
+
+        while True:
+            print("\n")
+            print("___________________________________________________________________________")
+            print("*************** Welcome To Colony Bank Of India : *************************")
+            print("___________________________________________________________________________")
+            print("\n")
+            print("1. Withdraw Money")
+            print("2. Deposit Money")
+            print("3. View Last Five Transactions")
+            print("4. View Profile")
+            print("5. Update Account Details")
+            print("6. Delete Account Permanently")
+            print("7. Apply for Loan / View Loan Details")
+            print("8. Logout")
+
+            try:
+                ch1 = int(input("Enter Your Choice: "))
+                if ch1 not in range(1,9):
+                    raise ValueError("Invalid Option.")
+            except ValueError as e:
+                print(f"Error: {e}")
+                continue
+
+            if ch1 == 1:
+                mycur.execute("SELECT Balance FROM bank WHERE UserName=%s", (u,))
+                bal = mycur.fetchone()[0]
+                print(f"\nYour Current Balance: ₹{bal}")
+
+                amt = int(input("Enter withdrawal amount: "))
+                if amt > bal:
+                    print("Insufficient funds.")
+                else:
+                    mycur.execute("UPDATE bank SET Balance=Balance - %s WHERE UserName=%s", (amt, u))
+                    mycur.execute("INSERT INTO transaction (Credited, Debited, UserName1, Date) VALUES (%s,%s,%s,%s)",
+                                  (0, amt, u, dates1))
+                    mycon.commit()
+                    print(f"₹{amt} withdrawn successfully.")
+
+            elif ch1 == 2:
+                amt = int(input("Enter deposit amount: "))
+                mycur.execute("UPDATE bank SET Balance=Balance + %s WHERE UserName=%s", (amt, u))
+                mycur.execute("INSERT INTO transaction (Credited, Debited, UserName1, Date) VALUES (%s,%s,%s,%s)",
+                              (amt, 0, u, dates1))
+                mycon.commit()
+                print(f"₹{amt} deposited successfully.")
+
+            elif ch1 == 3:
+                mycur.execute("SELECT Credited, Debited, Date FROM transaction WHERE UserName1=%s ORDER BY Date DESC LIMIT 5", (u,))
+                for t in mycur.fetchall():
+                    print(f"Credited: ₹{t[0]}, Debited: ₹{t[1]}, Date: {t[2]}")
+
+            elif ch1 == 4:
+                mycur.execute("SELECT Name, UserName, Address, Mobile_Number, Aadhar_no, Balance FROM bank WHERE UserName=%s", (u,))
+                profile = mycur.fetchone()
+                print(f"\nName: {profile[0]}\nUsername: {profile[1]}\nAddress: {profile[2]}\nPhone: {profile[3]}\nAadhar: {profile[4]}\nBalance: ₹{profile[5]}")
+
+            elif ch1 == 5:
+                print("\n1. Update Name\n2. Update Password\n3. Update Phone Number\n4. Update Address")
+                opt = int(input("Select field to update: "))
+                if opt == 1:
+                    new = input("Enter New Name: ")
+                    mycur.execute("UPDATE bank SET Name=%s WHERE UserName=%s", (new, u))
+                elif opt == 2:
+                    new = input("Enter New Password: ")
+                    mycur.execute("UPDATE bank SET Password=%s WHERE UserName=%s", (new, u))
+                elif opt == 3:
+                    new = input("Enter New Phone Number: ")
+                    mycur.execute("UPDATE bank SET Mobile_Number=%s WHERE UserName=%s", (new, u))
+                elif opt == 4:
+                    new = input("Enter New Address: ")
+                    mycur.execute("UPDATE bank SET Address=%s WHERE UserName=%s", (new, u))
+                mycon.commit()
+                print("Details updated successfully.")
+
+            elif ch1 == 6:
+                mycur.execute("DELETE FROM bank WHERE UserName=%s", (u,))
+                mycur.execute("DELETE FROM transaction WHERE UserName1=%s", (u,))
+                mycon.commit()
+                print("Account deleted.")
+                break
+
+            elif ch1 == 7:
+                # Loan functionality
+                mycur.execute("SELECT * FROM loan WHERE UserName=%s", (u,))
+                loan_data = mycur.fetchone()
+                if loan_data:
+                    print(f"Existing Loan: Amount=₹{loan_data[1]}, Date={loan_data[2]}")
+                else:
+                    amt = int(input("Enter loan amount: "))
+                    mycur.execute("INSERT INTO loan (UserName, LoanAmount, Date) VALUES (%s,%s,%s)", (u, amt, dates1))
+                    mycon.commit()
+                    print("Loan applied successfully.")
+
+            elif ch1 == 8:
+                print("Logged out. Thank you!")
+                break
